@@ -1,0 +1,73 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Stop and Start EC2 instances triggered by EventBridge
+
+
+Globals:
+  Function:
+    Runtime: java17
+    Architectures:
+      - x86_64
+    MemorySize: 512
+    Timeout: 30
+    Environment:
+      Variables:
+        INSTANCE_ID: "i-0a4779856f887e215"
+
+Resources:
+  StopEC2Function:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: mouride.dev.aws.lambda.StopInstance::handleRequest
+      CodeUri: instances-management
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - ec2:StopInstances
+                - ec2:DescribeInstances
+              Resource: '*'
+      Events:
+        StopEC2Schedule:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0 20 ? * MON-FRI *)
+            Input: '{"action": "stop"}'
+
+  StartEC2Function:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: mouride.dev.aws.lambda.StartInstance::handleRequest
+      CodeUri: instances-management
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - ec2:StartInstances
+                - ec2:DescribeInstances
+              Resource: '*'
+      Events:
+        StartEC2Schedule:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0 9 ? * MON-FRI *)
+            Input: '{"action": "start"}'
+
+Outputs:
+  StopEC2Function:
+    Description: "StopEC2 Lambda Function ARN"
+    Value: !GetAtt StopEC2Function.Arn
+  StopEC2FunctionIamRole:
+    Description: "Implicit IAM Role created for StopEC2 function"
+    Value: !GetAtt StopEC2Function.Arn
+  StartEC2Function:
+    Description: "StartEC2 Lambda Function ARN"
+    Value: !GetAtt StopEC2Function.Arn
+  StartEC2FunctionIamRole:
+    Description: "Implicit IAM Role created for StartEC2 function"
+    Value: !GetAtt StartEC2Function.Arn
