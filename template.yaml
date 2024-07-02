@@ -15,6 +15,18 @@ Globals:
       Variables:
         INSTANCE_ID: "i-0a4779856f887e215"
 
+Parameters:
+  EnableCronJobs:
+    Type: String
+    Default: "true"
+    AllowedValues:
+      - "true"
+      - "false"
+    Description: "Enable the cron job."
+
+Conditions:
+  AreCronJobsEnabled: !Equals [ !Ref EnableCronJobs, "true" ]
+
 Resources:
   StopEC2Function:
     Type: AWS::Serverless::Function
@@ -30,12 +42,6 @@ Resources:
                 - ec2:StopInstances
                 - ec2:DescribeInstances
               Resource: '*'
-      Events:
-        StopEC2Schedule:
-          Type: Schedule
-          Properties:
-            Schedule: cron(0 20 ? * MON-FRI *)
-            Input: '{"action": "stop"}'
 
   StartEC2Function:
     Type: AWS::Serverless::Function
@@ -51,12 +57,46 @@ Resources:
                 - ec2:StartInstances
                 - ec2:DescribeInstances
               Resource: '*'
-      Events:
-        StartEC2Schedule:
-          Type: Schedule
-          Properties:
-            Schedule: cron(0 9 ? * MON-FRI *)
-            Input: '{"action": "start"}'
+
+  StopEC2ScheduleRule:
+    Type: AWS::Events::Rule
+    Condition: AreCronJobsEnabled
+    Properties:
+      ScheduleExpression: cron(0 17 ? * MON-FRI *)
+      Targets:
+        - Arn: !GetAtt StopEC2Function.Arn
+          Id: StopEC2Function
+          Input: '{"detail": {"action": "stop"}}'
+
+
+  StartEC2ScheduleRule:
+    Type: AWS::Events::Rule
+    Condition: AreCronJobsEnabled
+    Properties:
+      ScheduleExpression: cron(0 7 ? * MON-FRI *)
+      Targets:
+        - Arn: !GetAtt StartEC2Function.Arn
+          Id: StartEC2Function
+          Input: '{"detail": {"action": "start"}}'
+
+
+  StopEC2Permission:
+    Type: AWS::Lambda::Permission
+    Condition: AreCronJobsEnabled
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref StopEC2Function
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt StopEC2ScheduleRule.Arn
+
+  StartEC2Permission:
+    Type: AWS::Lambda::Permission
+    Condition: AreCronJobsEnabled
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref StartEC2Function
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt StartEC2ScheduleRule.Arn
 
 Outputs:
   StopEC2Function:
@@ -71,3 +111,19 @@ Outputs:
   StartEC2FunctionIamRole:
     Description: "Implicit IAM Role created for StartEC2 function"
     Value: !GetAtt StartEC2Function.Arn
+  StartEC2ScheduleRule:
+    Description: "StartEC2 Schedule Rule"
+    Value: !GetAtt StartEC2ScheduleRule.Arn
+    Condition: AreCronJobsEnabled
+  StopEC2ScheduleRule:
+    Description: "StopEC2 Schedule Rule"
+    Value: !GetAtt StopEC2ScheduleRule.Arn
+    Condition: AreCronJobsEnabled
+  StartEC2ScheduleRuleArn:
+    Description: "StartEC2 Schedule Rule ARN"
+    Value: !GetAtt StartEC2ScheduleRule.Arn
+    Condition: AreCronJobsEnabled
+  StopEC2ScheduleRuleArn:
+    Description: "StopEC2 Schedule Rule ARN"
+    Value: !GetAtt StopEC2ScheduleRule.Arn
+    Condition: AreCronJobsEnabled
